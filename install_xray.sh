@@ -5,7 +5,6 @@
 set -e
 
 # ============ НАСТРОЙКИ ============
-# Можешь изменить SNI здесь
 SNI="www.amd.com"
 # ===================================
 
@@ -23,7 +22,6 @@ echo "Найдена последняя версия: $LATEST_VERSION"
 
 # Скачиваем Xray
 ARCHIVE="Xray-linux-64.zip"
-# Убираем лишний пробел после download/
 DOWNLOAD_URL="https://github.com/XTLS/Xray-core/releases/download/${LATEST_VERSION}/${ARCHIVE}"
 
 echo "Скачиваем Xray: $DOWNLOAD_URL"
@@ -48,10 +46,10 @@ rm -f "$ARCHIVE"
 SERVICE_FILE="/usr/lib/systemd/system/xray.service"
 echo "Создаём файл сервиса: $SERVICE_FILE"
 
-cat > "$SERVICE_FILE" << EOF
+cat > "$SERVICE_FILE" << 'EOF'
 [Unit]
 Description=Xray Service
-Documentation=https://github.com/xtls 
+Documentation=https://github.com/xtls
 After=network.target nss-lookup.target
 
 [Service]
@@ -80,9 +78,18 @@ echo "Сгенерирован ID: $ID"
 
 echo "Генерируем X25519 ключи..."
 X25519_KEYS=$(/opt/xray/xray x25519)
-PRIVATE_KEY=$(echo "$X25519_KEYS" | grep "Private key:" | awk '{print $3}')
-# Новый вывод: "Password (PublicKey): <ключ>" или старый "Public key: <ключ>"
-PUBLIC_KEY=$(echo "$X25519_KEYS" | grep -E "Password \(PublicKey\):|Public key:" | awk '{print $NF}')
+
+# ИСПРАВЛЕННЫЙ парсинг для нового формата вывода Xray
+PRIVATE_KEY=$(echo "$X25519_KEYS" | grep "PrivateKey:" | awk '{print $2}')
+PUBLIC_KEY=$(echo "$X25519_KEYS" | grep "Password (PublicKey):" | awk '{print $3}')
+
+# Если не нашли — пробуем старый формат
+if [ -z "$PRIVATE_KEY" ]; then
+  PRIVATE_KEY=$(echo "$X25519_KEYS" | grep "Private key:" | awk '{print $3}')
+fi
+if [ -z "$PUBLIC_KEY" ]; then
+  PUBLIC_KEY=$(echo "$X25519_KEYS" | grep "Public key:" | awk '{print $3}')
+fi
 
 if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
   echo "Ошибка: не удалось сгенерировать X25519 ключи"
@@ -110,7 +117,7 @@ if [ -z "$IP_SRV" ]; then
 fi
 echo "Внешний IP сервера: $IP_SRV"
 
-# ============ Создаём конфиг с динамическим SNI ============
+# ============ Создаём конфиг ============
 CONFIG_FILE="/opt/xray/config.json"
 echo "Создаём конфигурационный файл: $CONFIG_FILE"
 
